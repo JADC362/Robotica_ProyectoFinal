@@ -37,7 +37,9 @@ EncoderBD=37
 EncoderAI=11
 EncoderBI=7
 
-numPulsosVuelta=442
+numeroPulsosVuelta=442
+
+GPIO.setmode(GPIO.BOARD)
 
 GPIO.setup(en4, GPIO.OUT)
 GPIO.setup(PWM2, GPIO.OUT)
@@ -58,6 +60,16 @@ GPIO.output(en4,False)
 GPIO.output(en1,False)
 GPIO.output(en2,False)
 
+GPIO.setup(EncoderAD, GPIO.IN)
+GPIO.setup(EncoderBD, GPIO.IN)
+GPIO.setup(EncoderAI,GPIO.IN)
+GPIO.setup(EncoderBI,GPIO.IN)
+
+GPIO.input(EncoderAD)
+GPIO.input(EncoderBD)
+GPIO.input(EncoderAI)
+GPIO.input(EncoderBI)
+
 EstadoAactualD=0
 EstadoAanteriorD=GPIO.input(EncoderAD)
 EstadoBactualD=0
@@ -66,10 +78,14 @@ EstadoAactualI=0
 EstadoAanteriorI=GPIO.input(EncoderAI)
 EstadoBactualI=0
 
-contador=0
+contadorD=0
+contadorI=0
 
 velocidadDerecha=0
 velocidadIzquierda=0
+
+direccionD=1
+direccionI=1
 
 tiempoinicial=0
 def handle_start_service(msg):
@@ -103,37 +119,48 @@ def mover5():
 	GPIO.output(en4, False)
 	GPIO.output(en1, True)
 	GPIO.output(en2, False)
-	time.sleep(10)
+	time.sleep(30)
 	pass
 def velocidadSg():
-	global contador, EstadoAactual, EstadoAanterior, EstadoBactual, EstadoBanterior, tiempoinicial, velocidadDerecha,velocidadIzquierda
-	EstadoAanteriorD=EstadoAactual
+	global contadorD,contadorI, EstadoAactualD, EstadoAanteriorD, EstadoBactualD, tiempoinicial, velocidadDerecha,velocidadIzquierda, EstadoAactualI, EstadoAanteriorI, EstadoBactualI, direccionD,direccionI
+	EstadoAanteriorD=EstadoAactualD
 	EstadoAactualD=GPIO.input(EncoderAD)
 	EstadoBactualD=GPIO.input(EncoderBD)
 
-	
-	if EstadoAactual!=EstadoAanterior and EstadoAactual==1:
+	EstadoAanteriorI = EstadoAactualI
+	EstadoAactualI = GPIO.input(EncoderAI)
+	EstadoBactualI = GPIO.input(EncoderBI)
+
+	if EstadoAactualD!=EstadoAanteriorD and EstadoAactualD==1:
 		#print("Aa: {},Aant: {}, cont:{}".format(EstadoAactual,EstadoAanterior,contador))
-		contador+=1
-		if EstadoAactual!=EstadoBactual:
-			direccion=1
+		contadorD+=1
+		if EstadoAactualD!=EstadoBactualD:
+			direccionD=1
 		else:
-			direccion=-1
+			direccionD=-1
+
+	if EstadoAactualI!=EstadoAanteriorI and EstadoAactualI==1:
+		#print("Aa: {},Aant: {}, cont:{}".format(EstadoAactual,EstadoAanterior,contador))
+		contadorI+=1
+		if EstadoAactualI!=EstadoBactualI:
+			direccionI=1
+		else:
+			direccionI=-1
+
 	delta=time.time()-tiempoinicial
-	if delta>=0.001:
-		rueda.ChangeDutyCycle(rand)
-		#velocidad=direccion*(contador/numeroPulsosVuelta)*(2*np.pi)
+	if delta>=0.01:
+		velocidadDerecha=direccionD*(contadorD*100/numeroPulsosVuelta)*(2*np.pi)
+		velocidadIzquierda=direccionI*(contadorI*100/numeroPulsosVuelta)*(2*np.pi)
 		tiempoinicial=time.time()
-		print("rad/sg: {}, rand:{}, cont:{} \n".format(velocidad,rand,float(contador)))
-		contador=0
-	GPIO.cleanup()
+		print("velD: {}, RPSD:{}, velI: {}, RPSI:{}\n".format(velocidadDerecha,(contadorD*100)/numeroPulsosVuelta,velocidadIzquierda,(contadorI*100)/numeroPulsosVuelta))
+		contadorD=0
+		contadorI=0
 	pass
 
 def main():
 	global contador,EstadoAactual,EstadoAanterior,EstadoBactual,EstadoBanterior,tiempoinicial
 	lcd.lcd_display_string(estadoInicio[0], 1)
 	lcd.lcd_display_string(estadoInicio[1], 2)
-	time.sleep(5)
 	try:
 		rospy.init_node('PruebaMotoresRobot5', anonymous=True)
 		rate = rospy.Rate(10)
@@ -150,7 +177,7 @@ def main():
 		rospy.loginfo(AckRobot)
 		start_request = rospy.Service('start_service', StartService, handle_start_service)
 		while not rospy.is_shutdown():
-
+			velocidadSg()
 			pass
 	except Exception as e:
 		raise e
