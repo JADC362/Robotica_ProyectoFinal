@@ -67,6 +67,9 @@ estadoParar = ["Detenido","Completado"];
 group_number = 5;
 IP="157.253.210.55";
 
+#Inicializacion de pantalla lcd
+lcd = LCD.lcd()
+
 #Posiciones actual, final y de obstaculos
 posicionActual = [0,0,0]
 posicionFinal = [10,10,0];
