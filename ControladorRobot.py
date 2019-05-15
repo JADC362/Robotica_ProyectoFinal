@@ -121,7 +121,7 @@ pruebaIniciada = False
 #Funcion handle iniciada cuando se arranca el servicio start_service
 def handle_start_service(msg):
 
-	global posicionActual,posicionFinal
+	global posicionActual,posicionFinal, pruebaIniciada
 
 	posicionActual = [msg.start.position.x,msg.start.position.y,msg.start.orientation.w];
 	posicionFinal = [msg.goal.position.x,msg.goal.position.y,msg.goal.orientation.w];
@@ -131,10 +131,18 @@ def handle_start_service(msg):
 
 	pruebaIniciada = True;
 
+	lcd.lcd_clear()
+	lcd.lcd_display_string(estadoMovimiento[0], 1)
+	lcd.lcd_display_string(estadoMovimiento[1], 2)
+
 	return StartServiceResponse()
 
 #Funcion encargada de enviar la peticion de servicio para finalizar la prueba una vez se alcanzo el objetivo
 def terminarServicio(msg):
+	lcd.lcd_clear()
+	lcd.lcd_display_string(estadoParar[0], 1)
+	lcd.lcd_display_string(estadoParar[1], 2)
+
 	end_Request = rospy.ServiceProxy('end_service', EndService)
 	EndRobot = end_Request(msg)
 	rospy.loginfo(EndRobot)
@@ -196,7 +204,7 @@ def obtenerPosicionPol(puntoFinal):
 		umbralSuperado = True
 
 	if not umbralSuperado:
-		terminarServicio(np.random.randint(1000,9999))
+		#terminarServicio(np.random.randint(1000,9999))
 		alpha = -posicionActual[2]+np.arctan2((puntoFinal[1]-posicionActual[1]),(puntoFinal[0]-posicionActual[0]))
 	else:
 		alpha = 0;
@@ -226,25 +234,31 @@ def calcularCinematicaRobot(puntoFinal):
 	velocidadMD = np.dot([np.sin(paraRuedaD[0]+paraRuedaD[1]),-np.cos(paraRuedaD[0]+paraRuedaD[1]),-(paraRuedaD[3])*(np.cos(paraRuedaD[1]))],np.dot(matrixR,veloCar))/paraRuedaD[2]
 	velocidadMI = np.dot([np.sin(paraRuedaI[0]+paraRuedaI[1]),-np.cos(paraRuedaI[0]+paraRuedaI[1]),-(paraRuedaI[3])*(np.cos(paraRuedaI[1]))],np.dot(matrixR,veloCar))/paraRuedaI[2]
 
+	rospy.loginfo(velocidadMD);
+	rospy.loginfo(velocidadMI);
+
 #Funcion principal del codigo. Inicia los parametros ante ROS y mantiene este nodo en operacion, indicando que realizar
 def main():
 
 	global contador, EstadoAactual, EstadoAanterior, EstadoBactual, EstadoBanterior, tiempoRobot
-
+	
+	lcd.lcd_clear()
 	lcd.lcd_display_string(estadoInicio[0], 1)
 	lcd.lcd_display_string(estadoInicio[1], 2)
+	time.sleep(5)
 
 	try:
+
+
+		lcd.lcd_clear()
+		lcd.lcd_display_string(estadoPreAck[0], 1)
+		lcd.lcd_display_string(estadoPreAck[1], 2)
 
 		rospy.init_node('ControladorRobot5', anonymous=False)
 		
 		rospy.wait_for_service('ack_service')
 		robotRequest = rospy.ServiceProxy('ack_service', AckService)
 		AckRobot = robotRequest(group_number, IP)
-
-		lcd.lcd_clear()
-		lcd.lcd_display_string(estadoPreAck[0], 1)
-		lcd.lcd_display_string(estadoPreAck[1], 2)
 
 		while AckRobot.state == 0:
 			AckRobot = robotRequest(5, IP)
@@ -264,6 +278,13 @@ def main():
 			if pruebaIniciada:
 				actualizarPosicionActual();
 				calcularCinematicaRobot(posicionFinal);
+
+				GPIO.output(pin1LogicMotor, False)
+				GPIO.output(pin2LogicMotor, True)
+
+				GPIO.output(pin3LogicMotor, False)
+				GPIO.output(pin4LogicMotor, True)
+
 
 			rate.sleep()
 
