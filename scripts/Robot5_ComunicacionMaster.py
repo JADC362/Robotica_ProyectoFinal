@@ -2,7 +2,7 @@
 import time
 import sys
 import rospy
-#import I2C_LCD_driver as LCD
+import I2C_LCD_driver as LCD
 import numpy as np
 from Robot5.msg import RobotPos
 from Robot5.msg import ObstacleP
@@ -39,8 +39,8 @@ pubRobotStatus = None;
 RobotStatus = Int32();
 RobotStatus.data = 0;
 
-##Definicion de la variable lcd para el control de la pantalla lcd 16x2 por I2C
-#lcd = LCD.lcd()
+#Definicion de la variable lcd para el control de la pantalla lcd 16x2 por I2C
+lcd = LCD.lcd()
 
 #Funcion handle iniciada cuando se arranca el servicio start_service
 def handle_start_service(msg):
@@ -86,8 +86,8 @@ def main():
 
 		IP = sys.argv[1];
 
-		#lcd.lcd_display_string(estadoInicio[0], 1)
-		#lcd.lcd_display_string(estadoInicio[1], 2)
+		lcd.lcd_display_string(estadoInicio[0], 1)
+		lcd.lcd_display_string(estadoInicio[1], 2)
 
 		time.sleep(5)
 
@@ -98,9 +98,9 @@ def main():
 		#Publica el estado cero 0 en el topico RobotStatus - Este estado representa que el robot no se le ha ordenado iniciar
 		pubRobotStatus.publish(RobotStatus); 
 
-		#lcd.lcd_clear()
-		#lcd.lcd_display_string(estadoPreAck[0], 1)
-		#lcd.lcd_display_string(estadoPreAck[1], 2)
+		lcd.lcd_clear()
+		lcd.lcd_display_string(estadoPreAck[0], 1)
+		lcd.lcd_display_string(estadoPreAck[1], 2)
 		
 		rospy.wait_for_service('ack_service')
 		robotRequest = rospy.ServiceProxy('ack_service', AckService)
@@ -110,9 +110,9 @@ def main():
 			AckRobot = robotRequest(5, IP)
 			rospy.loginfo("Esperando servidor AckService")
 
-		#lcd.lcd_clear()
-		#lcd.lcd_display_string(estadoPreparado[0], 1)
-		#lcd.lcd_display_string(estadoPreparado[1], 2)
+		lcd.lcd_clear()
+		lcd.lcd_display_string(estadoPreparado[0], 1)
+		lcd.lcd_display_string(estadoPreparado[1], 2)
 
 		start_request = rospy.Service('start_service', StartService, handle_start_service)
 

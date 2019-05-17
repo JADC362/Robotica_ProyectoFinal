@@ -70,6 +70,8 @@ pubRobotMotorVels = None;
 
 #Variable que indica la velocidad de los motores del robot
 RobotMotorVels = MotorVels();
+RobotMotorVels.MotorD = 0.0;
+RobotMotorVels.MotorI = 0.0;
 
 #Variable que indica si ya hubo actualizacion de la posicion del robot en el topico RobotPositions
 callPos = False
