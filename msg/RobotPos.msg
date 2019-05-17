@@ -1,0 +1,2 @@
+geometry_msgs/Pose actual
+geometry_msgs/Pose goal
