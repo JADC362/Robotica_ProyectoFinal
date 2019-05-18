@@ -4,12 +4,9 @@ import sys
 import rospy
 import I2C_LCD_driver as LCD
 import numpy as np
-from Robot5.msg import RobotPos
-from Robot5.msg import ObstacleP
-from Robot5.msg import ObstaclesPos
+from Robot5.msg import GeneralPos
 from std_msgs.msg import Int32
 from geometry_msgs.msg import Pose
-from master_msgs_iele3338.msg import Obstacle
 from master_msgs_iele3338.srv import AckService
 from master_msgs_iele3338.srv import StartService, StartServiceResponse
 from master_msgs_iele3338.srv import EndService
@@ -30,9 +27,9 @@ posicionInicial = [0,0,0]
 posicionFinal = [10,10,0];
 obstaculos = [];
 
-#Variables de representacion para publicar en los topico ObstaclesPositions, RobotPositions y RobotStatus
-pubObstaclesPositions = None;
-pubRobotPositions = None;
+#Variables de representacion para publicar en los topico GeneralPositions, RobotPosition y RobotStatus
+pubGeneralPositions = None;
+pubRobotPosition = None;
 pubRobotStatus = None;
 
 #Variable que indica el estado del robot
@@ -45,19 +42,21 @@ lcd = LCD.lcd()
 #Funcion handle iniciada cuando se arranca el servicio start_service
 def handle_start_service(msg):
 
-	# Publica la informacion de posicion y cantidad de obstaculos en el topico RobotPositions
-	RobotPositions = RobotPos();
-	RobotPositions.actual = msg.start
-	RobotPositions.goal = msg.goal
+	# Publica la informacion de posicion y cantidad de obstaculos en el topico RobotPosition
+	RobotPosition = Pose();
+	RobotPosition.position = msg.start.position
+	RobotPosition.orientation = msg.start.orientation
 
-	pubRobotPositions.publish(RobotPositions)
+	pubRobotPosition.publish(RobotPosition)
 
-	# Publica la informacion de posicion y cantidad de obstaculos en el topico ObstaclesPositions
-	ObstaclesPositions = ObstaclesPos();
-	ObstaclesPositions.n_obstacles = msg.n_obstacles
-	ObstaclesPositions.obstacles = msg.obstacles
+	# Publica la informacion de posicion y cantidad de obstaculos en el topico GeneralPositions
+	GeneralPositions = GeneralPos();
+	GeneralPositions.start = msg.start
+	GeneralPositions.goal = msg.goal
+	GeneralPositions.n_obstacles = msg.n_obstacles
+	GeneralPositions.obstacles = msg.obstacles
 
-	pubObstaclesPositions.publish(ObstaclesPositions)
+	pubGeneralPositions.publish(GeneralPositions)
 
 	#Publica el estado cero 1 en el topico RobotStatus - Este estado representa que el robot se le ha ordenado iniciar
 	RobotStatus.data = 1;
@@ -79,7 +78,7 @@ def callbackRobotStatus(msg):
 #Funcion principal del codigo. Inicia los parametros ante ROS y mantiene este nodo en operacion, indicando que realizar
 def main():
 
-	global pubObstaclesPositions, pubRobotPositions, pubRobotStatus, IP
+	global pubGeneralPositions, pubRobotPosition, pubRobotStatus, IP
 
 	try:
 		rospy.init_node('Robot5_ComunicacionMaster', anonymous=False)
@@ -91,12 +90,14 @@ def main():
 
 		time.sleep(5)
 
-		pubObstaclesPositions = rospy.Publisher('ObstaclesPositions',ObstaclesPos,queue_size=10)
-		pubRobotPositions = rospy.Publisher('RobotPositions',RobotPos,queue_size=10)
+		pubGeneralPositions = rospy.Publisher('GeneralPositions',GeneralPos,queue_size=10)
+		pubRobotPosition = rospy.Publisher('robot_position',Pose,queue_size=10)
 		pubRobotStatus = rospy.Publisher('RobotStatus',Int32,queue_size=10)
 	
 		#Publica el estado cero 0 en el topico RobotStatus - Este estado representa que el robot no se le ha ordenado iniciar
 		pubRobotStatus.publish(RobotStatus); 
+
+		rospy.Subscriber("RobotStatus",Int32,callbackRobotStatus)
 
 		lcd.lcd_clear()
 		lcd.lcd_display_string(estadoPreAck[0], 1)
@@ -116,7 +117,6 @@ def main():
 
 		start_request = rospy.Service('start_service', StartService, handle_start_service)
 
-		rospy.Subscriber("RobotStatus",Int32,callbackRobotStatus)
 
 		rate = rospy.Rate(10)
 

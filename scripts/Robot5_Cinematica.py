@@ -3,13 +3,10 @@ import time
 import rospy
 import numpy as np
 import matplotlib.pyplot as plt
-from Robot5.msg import RobotPos
-from Robot5.msg import ObstacleP
 from Robot5.msg import MotorVels
-from Robot5.msg import ObstaclesPos
+from Robot5.msg import GeneralPos
 from std_msgs.msg import Int32
 from geometry_msgs.msg import Pose
-from master_msgs_iele3338.msg import Obstacle
 import networkx as nx
 
 #Posiciones actual, final y deseada
@@ -73,7 +70,7 @@ RobotMotorVels = MotorVels();
 RobotMotorVels.MotorD = 0.0;
 RobotMotorVels.MotorI = 0.0;
 
-#Variable que indica si ya hubo actualizacion de la posicion del robot en el topico RobotPositions
+#Variable que indica si ya hubo actualizacion de la posicion del robot en el topico robot_position
 callPos = False
 
 #Variable de error que representa el error total de posicion 
@@ -97,22 +94,23 @@ def callbackRobotStatus(msg):
 	else:
 		pruebaIniciada = False
 
-#Funcion callback llamada cuando hay una actualizacion en el ObstaclesPositions. Actualiza la informacion de posicion del robot y obtaculos
+#Funcion callback llamada cuando hay una actualizacion en el GeneralPositions. Actualiza la informacion de posicion del robot y obtaculos
 #Asi mismo, esta funcion da paso a la construccion de la grilla del mapa
-def callbackObstaclesPositions(msg):
-	global obstaculos
+def callbackGeneralPositions(msg):
+	global posicionFinal, obstaculos
 
 	for i in range(msg.n_obstacles):
 		obstaculos.append([msg.obstacles[i].position.position.x/1000.0,msg.obstacles[i].position.position.y/1000.0,msg.obstacles[i].radius/1000.0])
-
+	
+	posicionFinal = [msg.goal.position.x/1000.0,msg.goal.position.y/1000.0,msg.goal.orientation.w/1000.0];
+	
 	construirGrillaMapa()
 
-#Funcion callback llamada cuando hay una actualizacion en el RobotPositions. Actualiza la informacion de posicion del robot y obtaculos
-def callbackRobotPositions(msg):
-	global posicionActual, posicionFinal, callPos
+#Funcion callback llamada cuando hay una actualizacion en el robot_position. Actualiza la informacion de posicion del robot y obtaculos
+def callbackRobotPosition(msg):
+	global posicionActual, callPos
 
-	posicionActual = [msg.actual.position.x,msg.actual.position.y,msg.actual.orientation.w];
-	posicionFinal = [msg.goal.position.x,msg.goal.position.y,msg.goal.orientation.w];
+	posicionActual = [msg.position.x/1000.0,msg.position.y/1000.0,msg.orientation.w/1000.0];
 
 	callPos = True;
 
@@ -273,6 +271,7 @@ def pathPlaning():
 	nodoFinal = "{},{}".format(xf,yf)
 
 	ruta = nx.astar_path(G,nodoInicial,nodoFinal,heuristica)
+	print(ruta)
 	CalcularPosicionDeseada()
 
 #Funcion que calcula la posicion x,y,theta a donde se debe mover el robot
@@ -311,7 +310,7 @@ def obtenerPosicionPol(puntoFinal):
 		alpha = 0;
 		rho = 0;
 
-	errorTheta = posicionActualCar[2]-puntoFinal[2]
+	errorTheta = posicionActual[2]-puntoFinal[2]
 
 	if umbralSuperado and np.absolute(errorTheta)<=errorMaxTheta:
 		beta = 0
@@ -354,8 +353,8 @@ def main():
 		pubRobotMotorVels=rospy.Publisher("RobotMotorVels",MotorVels,queue_size=10)
 
 		rospy.Subscriber("RobotStatus",Int32,callbackRobotStatus)
-		rospy.Subscriber("ObstaclesPositions",ObstaclesPos,callbackObstaclesPositions)
-		rospy.Subscriber("RobotPositions",RobotPos,callbackRobotPositions)
+		rospy.Subscriber("GeneralPositions",GeneralPos,callbackGeneralPositions)
+		rospy.Subscriber("robot_position",Pose,callbackRobotPosition)
 
 		rate = rospy.Rate(10)
 
