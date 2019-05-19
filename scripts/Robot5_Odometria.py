@@ -6,7 +6,8 @@ import numpy as np
 from Robot5.msg import MotorVels
 from Robot5.msg import GeneralPos
 from geometry_msgs.msg import Pose
-from master_msgs_iele3338 import Covariance
+from std_msgs.msg import Int32
+from master_msgs_iele3338.msg import Covariance
 
 #Pines de los encoders en la raspberry
 EncoderAD=35
@@ -87,6 +88,9 @@ paraRuedaD = [-np.pi/2.0,-np.pi,3.5/100,10.0/100]
 errorKD = 0.1;
 errorKI = 0.1;
 
+#Razon de aumento de los radios de los obstaculos
+razonObstaculoError = 1.0
+
 #Tiempo durante el cual se estima la velocidad
 tiempoMedicionVelocidad = 0.01
 
@@ -122,7 +126,7 @@ def determinarObstaculoGrilla(obstaculo,posicionGrilla):
 	grillaConObstaculo = False
 	distanciaObsGrilla = np.sqrt((posicionGrilla[0]-obstaculo[0])**2+(posicionGrilla[1]-obstaculo[1])**2) 
 
-	if distanciaObsGrilla <= (razonObstaculoError*obstaculo[2]/2.0.0):
+	if distanciaObsGrilla <= (razonObstaculoError*obstaculo[2]/2.0):
 		grillaConObstaculo = True
 
 	return grillaConObstaculo
@@ -171,8 +175,8 @@ def determinarVelocidades():
 
 	if (time.time()-tiempoRobot) >= tiempoMedicionVelocidad:
 
-		velocidadMD = direccionD*(contadorD*100/numeroPulsosVuelta)*(2*np.pi)*paraRuedaD(2)
-		velocidadMI = direccionI*(contadorI*100/numeroPulsosVuelta)*(2*np.pi)*paraRuedaI(2)
+		velocidadMD = direccionD*(contadorD*100/numeroPulsosVuelta)*(2*np.pi)*paraRuedaD[2]
+		velocidadMI = direccionI*(contadorI*100/numeroPulsosVuelta)*(2*np.pi)*paraRuedaI[2]
 
 		tiempoRobot = time.time()
 
@@ -183,7 +187,6 @@ def determinarVelocidades():
 		
 		actualizarPosicionActual()
 
-
 #Funcion encargada de actualizar la posicion actual que cree el robot
 #Asi mismo, la funcion se encarga de llamar al metodo para actualizar la matriz de covarianza
 #Por ultimo, la funcion publica esta posicion nueva en el topico robot_position
@@ -191,11 +194,11 @@ def actualizarPosicionActual():
 	global posicionActual
 
 	DeltaS = (velocidadMD+velocidadMI)*tiempoMedicionVelocidad/2.0;
-	DeltaT = (velocidadMD-velocidadMI)*tiempoMedicionVelocidad/(2.0*paraRuedaD(3));
+	DeltaT = (velocidadMD-velocidadMI)*tiempoMedicionVelocidad/(2.0*paraRuedaD[3]);
 
 	actualizarErrorPropagado(DeltaS,DeltaT) #Se tiene que calcular primero el error antes de calcular la nueva posicion
 
-	posicionActual = posicionActual + [DeltaS*cos(posicionActual(2)+DeltaT/2.0),DeltaS*sin(posicionActual(2)+DeltaT/2.0),DeltaT]
+	posicionActual = posicionActual + [DeltaS*np.cos(posicionActual[2]+DeltaT/2.0),DeltaS*np.sin(posicionActual[2]+DeltaT/2.0),DeltaT]
 
 	posicionRobot = Pose();
 	posicionRobot.position.x = posicionActual[0]
@@ -213,11 +216,11 @@ def actualizarPosicionActual():
 def actualizarErrorPropagado(DeltaS,DeltaT):
 	global matrizCovarianza, pubRobotCovariance
 
-	gradientePosicion = np.array([[1,0,-DeltaS*sin(posicionActual(2)+DeltaT/2.0)],[0,1,DeltaS*cos(posicionActual(2)+DeltaT/2.0)],[0,0,1]]);
+	gradientePosicion = np.array([[1,0,-DeltaS*np.sin(posicionActual[2]+DeltaT/2.0)],[0,1,DeltaS*np.cos(posicionActual[2]+DeltaT/2.0)],[0,0,1]]);
 	
-	gradienteRuedasFila1 = np.array([((1/2.0)*cos(posicionActual(2)+DeltaT/2.0))-((1/2.0)*(DeltaS/(2.0*paraRuedaD(3)))*sin(posicionActual(2)+DeltaT/2.0)),((1/2.0)*cos(posicionActual(2)+DeltaT/2.0))+((1/2.0)*(DeltaS/(2.0*paraRuedaD(3)))*sin(posicionActual(2)+DeltaT/2.0))])
-	gradienteRuedasFila2 = np.array([((1/2.0)*sin(posicionActual(2)+DeltaT/2.0))+((1/2.0)*(DeltaS/(2.0*paraRuedaD(3)))*cos(posicionActual(2)+DeltaT/2.0)),((1/2.0)*sin(posicionActual(2)+DeltaT/2.0))-((1/2.0)*(DeltaS/(2.0*paraRuedaD(3)))*cos(posicionActual(2)+DeltaT/2.0))])
-	gradienteRuedas = np.array([gradienteRuedasFila1,gradienteRuedasFila2,[(1/(2.0*paraRuedaD(3))),-(1/(2.0*paraRuedaD(3)))]])
+	gradienteRuedasFila1 = np.array([((1/2.0)*np.cos(posicionActual[2]+DeltaT/2.0))-((1/2.0)*(DeltaS/(2.0*paraRuedaD[3]))*np.sin(posicionActual[2]+DeltaT/2.0)),((1/2.0)*np.cos(posicionActual[2]+DeltaT/2.0))+((1/2.0)*(DeltaS/(2.0*paraRuedaD[3]))*np.sin(posicionActual[2]+DeltaT/2.0))])
+	gradienteRuedasFila2 = np.array([((1/2.0)*np.sin(posicionActual[2]+DeltaT/2.0))+((1/2.0)*(DeltaS/(2.0*paraRuedaD[3]))*np.cos(posicionActual[2]+DeltaT/2.0)),((1/2.0)*np.sin(posicionActual[2]+DeltaT/2.0))-((1/2.0)*(DeltaS/(2.0*paraRuedaD[3]))*np.cos(posicionActual[2]+DeltaT/2.0))])
+	gradienteRuedas = np.array([gradienteRuedasFila1,gradienteRuedasFila2,[(1/(2.0*paraRuedaD[3])),-(1/(2.0*paraRuedaD[3]))]])
 
 	matrizCovarianzaRuedas = np.array([[errorKD*np.abs(velocidadMD*tiempoMedicionVelocidad),0],[0,errorKI*np.abs(velocidadMI*tiempoMedicionVelocidad)]])
 
@@ -245,8 +248,8 @@ def main():
 
 		rospy.init_node('Robot5_Odometria', anonymous=False)
 
-		pubRobotPosition = rospy.publisher("robot_position",Pose,queue_size=10)
-		pubRobotCovariance = rospy.publisher("robot_uncertainty",Covariance,queue_size=10)
+		pubRobotPosition = rospy.Publisher("robot_position",Pose,queue_size=10)
+		pubRobotCovariance = rospy.Publisher("robot_uncertainty",Covariance,queue_size=10)
 
 		rospy.Subscriber("RobotStatus",Int32,callbackRobotStatus)
 		rospy.Subscriber("GeneralPositions",GeneralPos,callbackGeneralPositions)

@@ -271,7 +271,9 @@ def pathPlaning():
 	nodoFinal = "{},{}".format(xf,yf)
 
 	ruta = nx.astar_path(G,nodoInicial,nodoFinal,heuristica)
-	print(ruta)
+	
+	#print(ruta)
+	
 	CalcularPosicionDeseada()
 
 #Funcion que calcula la posicion x,y,theta a donde se debe mover el robot
@@ -305,7 +307,7 @@ def obtenerPosicionPol(puntoFinal):
 		umbralSuperado = True
 
 	if not umbralSuperado:
-		alpha = -posCar[2]+np.arctan2((puntoFinal[1]-posCar[1]),(puntoFinal[0]-posCar[0]))
+		alpha = -posicionActual[2]+np.arctan2((puntoFinal[1]-posicionActual[1]),(puntoFinal[0]-posicionActual[0]))
 	else:
 		alpha = 0;
 		rho = 0;
@@ -315,7 +317,7 @@ def obtenerPosicionPol(puntoFinal):
 	if umbralSuperado and np.absolute(errorTheta)<=errorMaxTheta:
 		beta = 0
 	else:
-		beta = -alpha-posCar[2]
+		beta = -alpha-posicionActual[2]
 
 	return np.asarray([rho,alpha,beta])
 
