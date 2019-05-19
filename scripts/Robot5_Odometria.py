@@ -6,6 +6,7 @@ import numpy as np
 from Robot5.msg import MotorVels
 from Robot5.msg import GeneralPos
 from geometry_msgs.msg import Pose
+from master_msgs_iele3338 import Covariance
 
 #Pines de los encoders en la raspberry
 EncoderAD=35
@@ -32,8 +33,11 @@ posicionActual = [0,0,0]
 posicionFinal = [10,10,0];
 obstaculos = [];
 
+#Matriz de error de la posicion actual
+matrizCovarianza = []
+
 #Variable que indica el numero de pulsos por vuelta del motor con caja reductora
-numeroPulsosVuelta=442
+numeroPulsosVuelta=442.0
 
 #Variables de estado de los encoders
 EstadoAactualD=0
@@ -59,20 +63,32 @@ tamanoMapa = 2.5
 #Tamano de grilla 0.05x0.05 (metros)
 tamanoGrilla = 0.01
 
-#Variables de representacion para publicar en los topico robot_position
-pubrRobotPosition = None;
+#Variables de representacion para publicar en los topico robot_position y robot_uncertainty
+pubRobotPosition = None;
+pubRobotCovariance = None;
 
 #Contador de paso de los encoders
 contadorD=0
 contadorI=0
 
-#Velocidad de los motores
+#Velocidad lineal de los motores en m/s
 velocidadMD=0 #Motor derecha
 velocidadMI=0 #Motor izquierdo
 
 #Direccion de movimiento de los motores
 direccionD=1
 direccionI=1
+
+#Vector que contiene los parametros de las ruedas del robot: alpha, beta, r, l
+paraRuedaI = [np.pi/2.0,0,3.5/100,10.0/100]
+paraRuedaD = [-np.pi/2.0,-np.pi,3.5/100,10.0/100]
+
+#Proporcionalidad de errores generados por las ruedas en su moviminento
+errorKD = 0.1;
+errorKI = 0.1;
+
+#Tiempo durante el cual se estima la velocidad
+tiempoMedicionVelocidad = 0.01
 
 #Funcion callback llamada cuando hay una actualizacion en el RobotStatus. Actualiza la informacion de estado del robot
 def callbackRobotStatus(msg):
@@ -106,7 +122,7 @@ def determinarObstaculoGrilla(obstaculo,posicionGrilla):
 	grillaConObstaculo = False
 	distanciaObsGrilla = np.sqrt((posicionGrilla[0]-obstaculo[0])**2+(posicionGrilla[1]-obstaculo[1])**2) 
 
-	if distanciaObsGrilla <= (razonObstaculoError*obstaculo[2]/2.0):
+	if distanciaObsGrilla <= (razonObstaculoError*obstaculo[2]/2.0.0):
 		grillaConObstaculo = True
 
 	return grillaConObstaculo
@@ -124,9 +140,10 @@ def construirGrillaMapa():
  				y = (numeroCeldas-1-i)*tamanoGrilla
  				x = j*tamanoGrilla
  				if(determinarObstaculoGrilla(obstaculos[k],[x,y])):
- 					grillaMapa[numeroCeldas-1-i][j]=1	
+ 					grillaMapa[numeroCeldas-1-i][j]=1
 
 #Funcion encargada de convertir la respuesta de los encodores en velocidades angulares
+#Asi mismo, la funcion se encarga de llamar la funcion para actualizar la posicion que cree el robot
 def determinarVelocidades():
 	global contadorD, contadorI, EstadoAactualD, EstadoAanteriorD, EstadoBactualD, tiempoRobot, EstadoAactualI, EstadoAanteriorI, EstadoBactualI, direccionD, direccionI, velocidadMD, velocidadMI
 
@@ -152,30 +169,90 @@ def determinarVelocidades():
 		else:
 			direccionI=-1
 
-	if (time.time()-tiempoRobot) >= 0.01:
+	if (time.time()-tiempoRobot) >= tiempoMedicionVelocidad:
 
-		velocidadMD = direccionD*(contadorD*100/numeroPulsosVuelta)*(2*np.pi)
-		velocidadMI = direccionI*(contadorI*100/numeroPulsosVuelta)*(2*np.pi)
+		velocidadMD = direccionD*(contadorD*100/numeroPulsosVuelta)*(2*np.pi)*paraRuedaD(2)
+		velocidadMI = direccionI*(contadorI*100/numeroPulsosVuelta)*(2*np.pi)*paraRuedaI(2)
 
 		tiempoRobot = time.time()
 
-		print("ConD: {}, VelD:{}, ConI: {}, VelDI:{}\n".format(contadorD,velocidadMD,contadorI,velocidadMI))
+		#print("ConD: {}, VelD:{}, ConI: {}, VelDI:{}\n".format(contadorD,velocidadMD,contadorI,velocidadMI))
 		
 		contadorD=0
 		contadorI=0
+		
+		actualizarPosicionActual()
+
+
+#Funcion encargada de actualizar la posicion actual que cree el robot
+#Asi mismo, la funcion se encarga de llamar al metodo para actualizar la matriz de covarianza
+#Por ultimo, la funcion publica esta posicion nueva en el topico robot_position
+def actualizarPosicionActual():
+	global posicionActual
+
+	DeltaS = (velocidadMD+velocidadMI)*tiempoMedicionVelocidad/2.0;
+	DeltaT = (velocidadMD-velocidadMI)*tiempoMedicionVelocidad/(2.0*paraRuedaD(3));
+
+	actualizarErrorPropagado(DeltaS,DeltaT) #Se tiene que calcular primero el error antes de calcular la nueva posicion
+
+	posicionActual = posicionActual + [DeltaS*cos(posicionActual(2)+DeltaT/2.0),DeltaS*sin(posicionActual(2)+DeltaT/2.0),DeltaT]
+
+	posicionRobot = Pose();
+	posicionRobot.position.x = posicionActual[0]
+	posicionRobot.position.y = posicionActual[1]
+	posicionRobot.position.z = 0
+
+	posicionRobot.orientation.x = 0
+	posicionRobot.orientation.y = 0
+	posicionRobot.orientation.z = 0
+	posicionRobot.orientation.w = posicionActual[2]
+
+	pubRobotPosition.publish(posicionRobot)
+
+#Funcion encargada de actualizar la matriz de covarianza de error en el movimiento del robot
+def actualizarErrorPropagado(DeltaS,DeltaT):
+	global matrizCovarianza, pubRobotCovariance
+
+	gradientePosicion = np.array([[1,0,-DeltaS*sin(posicionActual(2)+DeltaT/2.0)],[0,1,DeltaS*cos(posicionActual(2)+DeltaT/2.0)],[0,0,1]]);
+	
+	gradienteRuedasFila1 = np.array([((1/2.0)*cos(posicionActual(2)+DeltaT/2.0))-((1/2.0)*(DeltaS/(2.0*paraRuedaD(3)))*sin(posicionActual(2)+DeltaT/2.0)),((1/2.0)*cos(posicionActual(2)+DeltaT/2.0))+((1/2.0)*(DeltaS/(2.0*paraRuedaD(3)))*sin(posicionActual(2)+DeltaT/2.0))])
+	gradienteRuedasFila2 = np.array([((1/2.0)*sin(posicionActual(2)+DeltaT/2.0))+((1/2.0)*(DeltaS/(2.0*paraRuedaD(3)))*cos(posicionActual(2)+DeltaT/2.0)),((1/2.0)*sin(posicionActual(2)+DeltaT/2.0))-((1/2.0)*(DeltaS/(2.0*paraRuedaD(3)))*cos(posicionActual(2)+DeltaT/2.0))])
+	gradienteRuedas = np.array([gradienteRuedasFila1,gradienteRuedasFila2,[(1/(2.0*paraRuedaD(3))),-(1/(2.0*paraRuedaD(3)))]])
+
+	matrizCovarianzaRuedas = np.array([[errorKD*np.abs(velocidadMD*tiempoMedicionVelocidad),0],[0,errorKI*np.abs(velocidadMI*tiempoMedicionVelocidad)]])
+
+	matrizCovarianza = np.matmul(np.matmul(gradientePosicion,matrizCovarianza),np.transpose(gradientePosicion))+np.matmul(np.matmul(gradienteRuedas,matrizCovarianzaRuedas),np.transpose(gradienteRuedas))
+
+	matrizErrorCovarianza = Covariance()
+	matrizErrorCovarianza.sigma11 = matrizCovarianza[0][0]
+	matrizErrorCovarianza.sigma12 = matrizCovarianza[0][1]
+	matrizErrorCovarianza.sigma13 = matrizCovarianza[0][2]
+	matrizErrorCovarianza.sigma21 = matrizCovarianza[1][0]
+	matrizErrorCovarianza.sigma22 = matrizCovarianza[1][1]
+	matrizErrorCovarianza.sigma23 = matrizCovarianza[1][2]
+	matrizErrorCovarianza.sigma31 = matrizCovarianza[2][0]
+	matrizErrorCovarianza.sigma32 = matrizCovarianza[2][1]
+	matrizErrorCovarianza.sigma33 = matrizCovarianza[2][2]
+	
+	pubRobotCovariance.publish(matrizErrorCovarianza);
 
 #Funcion principal del codigo. Inicia los parametros ante ROS y mantiene este nodo en operacion, indicando que realizar
 def main():
+
+	global pubRobotPosition, pubRobotCovariance, matrizCovarianza
 
 	try:
 
 		rospy.init_node('Robot5_Odometria', anonymous=False)
 
-		pubrRobotPosition = rospy.publisher("robot_position",Pose,queue_size=10)
+		pubRobotPosition = rospy.publisher("robot_position",Pose,queue_size=10)
+		pubRobotCovariance = rospy.publisher("robot_uncertainty",Covariance,queue_size=10)
 
 		rospy.Subscriber("RobotStatus",Int32,callbackRobotStatus)
 		rospy.Subscriber("GeneralPositions",GeneralPos,callbackGeneralPositions)
 		rospy.Subscriber("robot_position",Pose,callbackRobotPosition)
+
+		matrizCovarianza = np.zeros([3,3])
 		
 		rate = rospy.Rate(10)
 
