@@ -24,7 +24,7 @@ IP="0.0.0.0";
 
 #Posiciones actual, final y de obstaculos
 posicionInicial = [0,0,0]
-posicionFinal = [10,10,0];
+posicionFinal = [1,1,0]*1000;
 obstaculos = [];
 
 #Variables de representacion para publicar en los topico GeneralPositions, RobotPosition y RobotStatus
@@ -118,7 +118,7 @@ def main():
 		start_request = rospy.Service('start_service', StartService, handle_start_service)
 
 
-		rate = rospy.Rate(10)
+		rate = rospy.Rate(1000)
 
 		while not rospy.is_shutdown():
 

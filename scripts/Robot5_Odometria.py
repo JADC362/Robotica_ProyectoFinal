@@ -7,6 +7,7 @@ from Robot5.msg import MotorVels
 from Robot5.msg import GeneralPos
 from geometry_msgs.msg import Pose
 from std_msgs.msg import Int32
+from Robot5.msg import MotorVels
 from master_msgs_iele3338.msg import Covariance
 
 #Pines de los encoders en la raspberry
@@ -31,7 +32,7 @@ GPIO.input(EncoderBI)
 
 #Posiciones actual, final y de obstaculos
 posicionActual = [0,0,0]
-posicionFinal = [10,10,0];
+posicionFinal = [1,1,0]*1000;
 obstaculos = [];
 
 #Matriz de error de la posicion actual
@@ -58,11 +59,11 @@ pruebaIniciada = False
 #Grilla del mapa.
 grillaMapa = []
 
-#Tamano del mapa 2.5x2.5 (metros)
-tamanoMapa = 2.5
+#Tamano del mapa 2500x2500 (milimetros)
+tamanoMapa = 2500
 
-#Tamano de grilla 0.05x0.05 (metros)
-tamanoGrilla = 0.01
+#Tamano de grilla 0.05x0.05 (milimetros)
+tamanoGrilla = 50
 
 #Variables de representacion para publicar en los topico robot_position y robot_uncertainty
 pubRobotPosition = None;
@@ -77,12 +78,12 @@ velocidadMD=0 #Motor derecha
 velocidadMI=0 #Motor izquierdo
 
 #Direccion de movimiento de los motores
-direccionD=1
-direccionI=1
+direccionD=0
+direccionI=0
 
 #Vector que contiene los parametros de las ruedas del robot: alpha, beta, r, l
-paraRuedaI = [np.pi/2.0,0,3.5/100,10.0/100]
-paraRuedaD = [-np.pi/2.0,-np.pi,3.5/100,10.0/100]
+paraRuedaI = [np.pi/2.0,0,35.0,80.0]
+paraRuedaD = [-np.pi/2.0,-np.pi,35.0,80.0]
 
 #Proporcionalidad de errores generados por las ruedas en su moviminento
 errorKD = 0.1;
@@ -93,6 +94,22 @@ razonObstaculoError = 1.0
 
 #Tiempo durante el cual se estima la velocidad
 tiempoMedicionVelocidad = 0.01
+
+#Funcion callback llamada cuando hay una actualizacion en el RobotMotorVels. Actualiza la informacion de velocidad de motores del robot
+def callbackMotorVels(msg):
+	global direccionD, direccionI
+
+	velocidadMD = msg.MotorD.data
+	velocidadMI = msg.MotorI.data
+
+	if velocidadMD > 0:
+		direccionD = 1;
+	else:
+		direccionD = -1;
+	if velocidadMI > 0:
+		direccionI = 1;
+	else:
+		direccionI = -1;
 
 #Funcion callback llamada cuando hay una actualizacion en el RobotStatus. Actualiza la informacion de estado del robot
 def callbackRobotStatus(msg):
@@ -109,16 +126,17 @@ def callbackGeneralPositions(msg):
 	global obstaculos, posicionFinal
 
 	for i in range(msg.n_obstacles):
-		obstaculos.append([msg.obstacles[i].position.position.x/1000.0,msg.obstacles[i].position.position.y/1000.0,msg.obstacles[i].radius/1000.0])
+		obstaculos.append([msg.obstacles[i].position.position.x,msg.obstacles[i].position.position.y,msg.obstacles[i].radius])
 
-	posicionFinal = [msg.goal.position.x/1000.0,msg.goal.position.y/1000.0,msg.goal.orientation.w/1000.0];
+	posicionFinal = [msg.goal.position.x,msg.goal.position.y,msg.goal.orientation.w];
 	construirGrillaMapa()
 
 #Funcion callback llamada cuando hay una actualizacion en el robot_position. Actualiza la informacion de posicion del robot y obtaculos
 def callbackRobotPosition(msg):
 	global posicionActual
-
-	posicionActual = [msg.position.x/1000.0,msg.position.y/1000.0,msg.orientation.w/1000.0];
+	
+	if (posicionActual[0]==0) and (posicionActual[1]==0) and (posicionActual[2]==0):
+		posicionActual = [msg.position.x,msg.position.y,msg.orientation.w];
 
 #Funcion que determina si un obstaculo [x,y,Diametro] ocupa una grilla [x,y]
 def determinarObstaculoGrilla(obstaculo,posicionGrilla):
@@ -161,22 +179,19 @@ def determinarVelocidades():
 
 	if EstadoAactualD!=EstadoAanteriorD and EstadoAactualD==1:
 		contadorD+=1
-		if EstadoAactualD!=EstadoBactualD:
-			direccionD=1
-		else:
-			direccionD=-1
+				
 
 	if EstadoAactualI!=EstadoAanteriorI and EstadoAactualI==1:
 		contadorI+=1
-		if EstadoAactualI!=EstadoBactualI:
-			direccionI=1
-		else:
-			direccionI=-1
 
 	if (time.time()-tiempoRobot) >= tiempoMedicionVelocidad:
 
-		velocidadMD = direccionD*(contadorD*100/numeroPulsosVuelta)*(2*np.pi)*paraRuedaD[2]
-		velocidadMI = direccionI*(contadorI*100/numeroPulsosVuelta)*(2*np.pi)*paraRuedaI[2]
+
+		#print(contadorD)
+		#print(contadorI)
+
+		velocidadMD = direccionD*(contadorD*100/numeroPulsosVuelta)*(2*np.pi)*(paraRuedaD[2])
+		velocidadMI = direccionI*(contadorI*100/numeroPulsosVuelta)*(2*np.pi)*(paraRuedaI[2])
 
 		tiempoRobot = time.time()
 
@@ -184,6 +199,7 @@ def determinarVelocidades():
 		
 		contadorD=0
 		contadorI=0
+
 		
 		actualizarPosicionActual()
 
@@ -193,12 +209,13 @@ def determinarVelocidades():
 def actualizarPosicionActual():
 	global posicionActual
 
-	DeltaS = (velocidadMD+velocidadMI)*tiempoMedicionVelocidad/2.0;
-	DeltaT = (velocidadMD-velocidadMI)*tiempoMedicionVelocidad/(2.0*paraRuedaD[3]);
+	DeltaS = ((velocidadMD+velocidadMI)*tiempoMedicionVelocidad)/2.0;
+	DeltaT = ((velocidadMD-velocidadMI)*tiempoMedicionVelocidad)/(2.0*paraRuedaD[3]);
 
 	actualizarErrorPropagado(DeltaS,DeltaT) #Se tiene que calcular primero el error antes de calcular la nueva posicion
 
-	posicionActual = posicionActual + [DeltaS*np.cos(posicionActual[2]+DeltaT/2.0),DeltaS*np.sin(posicionActual[2]+DeltaT/2.0),DeltaT]
+	adicionPosicion = [DeltaS*np.cos(posicionActual[2]+DeltaT/2.0),DeltaS*np.sin(posicionActual[2]+DeltaT/2.0),DeltaT]
+	posicionActual = np.array(posicionActual) + np.array(adicionPosicion)
 
 	posicionRobot = Pose();
 	posicionRobot.position.x = posicionActual[0]
@@ -250,14 +267,15 @@ def main():
 
 		pubRobotPosition = rospy.Publisher("robot_position",Pose,queue_size=10)
 		pubRobotCovariance = rospy.Publisher("robot_uncertainty",Covariance,queue_size=10)
-
+		
 		rospy.Subscriber("RobotStatus",Int32,callbackRobotStatus)
 		rospy.Subscriber("GeneralPositions",GeneralPos,callbackGeneralPositions)
 		rospy.Subscriber("robot_position",Pose,callbackRobotPosition)
+		rospy.Subscriber("RobotMotorVels",MotorVels,callbackMotorVels)
 
 		matrizCovarianza = np.zeros([3,3])
 		
-		rate = rospy.Rate(10)
+		rate = rospy.Rate(1000)
 
 		while not rospy.is_shutdown():
 

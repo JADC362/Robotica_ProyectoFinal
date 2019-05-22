@@ -7,11 +7,12 @@ from Robot5.msg import MotorVels
 from Robot5.msg import GeneralPos
 from std_msgs.msg import Int32
 from geometry_msgs.msg import Pose
+from std_msgs.msg import Float32
 import networkx as nx
 
 #Posiciones actual, final y deseada
 posicionActual = [0,0,0]
-posicionFinal = [10,10,0];
+posicionFinal = [1,1,0]*1000;
 posicionDeseada = [0,0,0];
 
 #Matriz de obstaculos, cada fila corresponde a un obstaculo, y cada columna a un dato
@@ -22,17 +23,17 @@ obstaculos = [];
 tiempoRobot = 0;
 
 #Constante del sistema de control
-k = [0.02,0.4,0.01]
+k = [0.04*10,0.3*0,0.02*0]
 
 #Variable de umbral de error superado cuando el robot se acerca a una posicion
 umbralSuperado = False;
 
 #Variable de umbral de error superado cuando el robot se acerca a una posicion
-errorRho = 0.01;
+errorRho = 10;
 
 #Vector que contiene los parametros de las ruedas del robot: alpha, beta, r, l
-paraRuedaI = [np.pi/2,0,3.5/100,10.0/100]
-paraRuedaD = [-np.pi/2,-np.pi,3.5/100,10.0/100]
+paraRuedaI = [np.pi/2.0,np.pi,35.0,80.0]
+paraRuedaD = [-np.pi/2.0,0,35.0,80.0]
 
 #Variable que indica si la prueba ya inicio
 pruebaIniciada = False
@@ -40,14 +41,14 @@ pruebaIniciada = False
 #Grilla del mapa.
 grillaMapa = []
 
-#Tamano del mapa 2.5x2.5 (metros)
-tamanoMapa = 2.5
+#Tamano del mapa 2500x2500 (milimetros)
+tamanoMapa = 2500
 
-#Tamano de grilla 0.05x0.05 (metros)
-tamanoGrilla = 0.01
+#Tamano de grilla 5x5 (milimetros)
+tamanoGrilla = 50
 
 #Razon de aumento de los radios de los obstaculos
-razonObstaculoError = 1.0
+razonObstaculoError = 1.5
 
 #Grafo
 G = None
@@ -74,13 +75,10 @@ RobotMotorVels.MotorI = 0.0;
 callPos = False
 
 #Variable de error que representa el error total de posicion 
-errorMax=2*(tamanoGrilla)
+errorMax=(tamanoGrilla)
 
 #Variable que representa si ya se sobrepaso el umbral de error
 umbralSuperado = False
-
-#Variable que representa el umbral de error aceptado en rho
-errorRho = 0.01
 
 #Variable que representa el umbral de error aceptado en theta
 errorMaxTheta = 0.02
@@ -100,9 +98,9 @@ def callbackGeneralPositions(msg):
 	global posicionFinal, obstaculos
 
 	for i in range(msg.n_obstacles):
-		obstaculos.append([msg.obstacles[i].position.position.x/1000.0,msg.obstacles[i].position.position.y/1000.0,msg.obstacles[i].radius/1000.0])
+		obstaculos.append([msg.obstacles[i].position.position.x,msg.obstacles[i].position.position.y,msg.obstacles[i].radius])
 	
-	posicionFinal = [msg.goal.position.x/1000.0,msg.goal.position.y/1000.0,msg.goal.orientation.w/1000.0];
+	posicionFinal = [msg.goal.position.x,msg.goal.position.y,msg.goal.orientation.w];
 	
 	construirGrillaMapa()
 
@@ -110,7 +108,7 @@ def callbackGeneralPositions(msg):
 def callbackRobotPosition(msg):
 	global posicionActual, callPos
 
-	posicionActual = [msg.position.x/1000.0,msg.position.y/1000.0,msg.orientation.w/1000.0];
+	posicionActual = [msg.position.x,msg.position.y,msg.orientation.w];
 
 	callPos = True;
 
@@ -142,9 +140,9 @@ def construirGrillaMapa():
  				if(determinarObstaculoGrilla(obstaculos[k],[x,y])):
  					grillaMapa[numeroCeldas-1-i][j]=1	
 
- 	plt.figure()
- 	plt.imshow(grillaMapa,origin='lower')	
- 	plt.show()
+ 	#plt.figure()
+ 	#plt.imshow(grillaMapa,origin='lower')	
+ 	#plt.show()
 
  	construirGrafo();
 
@@ -272,7 +270,9 @@ def pathPlaning():
 
 	ruta = nx.astar_path(G,nodoInicial,nodoFinal,heuristica)
 	
-	#print(ruta)
+	print("Imprimir Ruta ")
+	print(ruta)
+	print("\n")
 	
 	CalcularPosicionDeseada()
 
@@ -327,7 +327,8 @@ def calcularCinematicaRobot(puntoFinal):
 	
 	#Obtencion del error de posicion en coordenadas polares
 	posPol = np.asarray([0,0,puntoFinal[2]])-obtenerPosicionPol(puntoFinal)
-
+	
+	print("Error:{}".format(posPol));
 	#Ley de control aplicada para encontrar v y w
 	vecVelLinearAngular = np.asarray([k[0]*posPol[0],k[1]*posPol[1]+k[2]*posPol[2]])
 	
@@ -341,8 +342,12 @@ def calcularCinematicaRobot(puntoFinal):
 	velocidadMD = np.dot([np.sin(paraRuedaD[0]+paraRuedaD[1]),-np.cos(paraRuedaD[0]+paraRuedaD[1]),-(paraRuedaD[3])*(np.cos(paraRuedaD[1]))],np.dot(matrixR,veloCar))/paraRuedaD[2]
 	velocidadMI = np.dot([np.sin(paraRuedaI[0]+paraRuedaI[1]),-np.cos(paraRuedaI[0]+paraRuedaI[1]),-(paraRuedaI[3])*(np.cos(paraRuedaI[1]))],np.dot(matrixR,veloCar))/paraRuedaI[2]
 
-	RobotMotorVels.MotorD = velocidadMD;
-	RobotMotorVels.MotorI = velocidadMI;
+	RobotMotorVels = MotorVels();
+	RobotMotorVels.MotorD = Float32(velocidadMD);
+	RobotMotorVels.MotorI = Float32(velocidadMI);
+
+	#print(velocidadMD)
+	#print(velocidadMI)
 
 	pubRobotMotorVels.publish(RobotMotorVels);
 
@@ -358,16 +363,24 @@ def main():
 		rospy.Subscriber("GeneralPositions",GeneralPos,callbackGeneralPositions)
 		rospy.Subscriber("robot_position",Pose,callbackRobotPosition)
 
-		rate = rospy.Rate(10)
+		RobotMotorVels = MotorVels();
+		RobotMotorVels.MotorD = Float32(0);
+		RobotMotorVels.MotorI = Float32(0);
+		pubRobotMotorVels.publish(RobotMotorVels);
+
+		rate = rospy.Rate(1000)
 
 		while not rospy.is_shutdown():
 
 			if pruebaIniciada and ruta != None and callPos:
 
 				errorPosicionDeseada = np.sqrt((posicionDeseada[0]-posicionActual[0])**2+(posicionDeseada[1]-posicionActual[1])**2)
-
+				#print("Error Actual: {}".format(errorPosicionDeseada));
 				if errorPosicionDeseada <= errorMax:
 					CalcularPosicionDeseada();
+					#print("Posicion Deseada: ")
+					#print(posicionDeseada)
+					#print("\n")
 					
 				calcularCinematicaRobot(posicionDeseada)
 				callPos = False;

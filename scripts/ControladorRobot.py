@@ -2,7 +2,7 @@
 import time
 import RPi.GPIO as GPIO
 import rospy
-import I2C_LCD_driver as LCD
+#import I2C_LCD_driver as LCD
 import numpy as np
 from geometry_msgs.msg import Pose
 from master_msgs_iele3338.srv import AckService
@@ -22,6 +22,8 @@ EncoderAD=35
 EncoderBD=37
 EncoderAI=11
 EncoderBI=7
+
+#lcd = LCD.lcd()
 
 #Configuracion de pines de la raspberry
 GPIO.setmode(GPIO.BOARD)
@@ -73,7 +75,7 @@ posicionFinal = [10,10,0];
 obstaculos = [];
 
 #Variable que indica el numero de pulsos por vuelta del motor con caja reductora
-numeroPulsosVuelta=442
+numeroPulsosVuelta=442.0
 
 #Variables de estado de los encoders
 EstadoAactualD=0
@@ -118,13 +120,13 @@ pruebaIniciada = False
 #Funcion handle iniciada cuando se arranca el servicio start_service
 def handle_start_service(msg):
 
-	global posicionActual,posicionFinal
+	global posicionActual,posicionFinal,pruebaIniciada
 
 	posicionActual = [msg.start.position.x,msg.start.position.y,msg.start.orientation.w];
 	posicionFinal = [msg.goal.position.x,msg.goal.position.y,msg.goal.orientation.w];
 
 	for i in range(msg.n_obstacles):
-		obstaculos.append([msg.obstacles[i].position.x,msg.obstacles[i].position.y,msg.obstacles[i].orientation.w])
+		obstaculos.append([msg.obstacles[i].position.position.x,msg.obstacles[i].position.position.y,msg.obstacles[i].radius])
 
 	pruebaIniciada = True;
 
@@ -144,10 +146,14 @@ def actualizarPosicionActual():
 	EstadoAactualD=GPIO.input(EncoderAD)
 	EstadoBactualD=GPIO.input(EncoderBD)
 
+
+
 	EstadoAanteriorI = EstadoAactualI
 	EstadoAactualI = GPIO.input(EncoderAI)
 	EstadoBactualI = GPIO.input(EncoderBI)
 
+	#print(str(EstadoAactualD)+","+str(EstadoBactualD))
+	#print(str(EstadoAactualI)+","+str(EstadoBactualI))
 	if EstadoAactualD!=EstadoAanteriorD and EstadoAactualD==1:
 		contadorD+=1
 		if EstadoAactualD!=EstadoBactualD:
@@ -162,7 +168,7 @@ def actualizarPosicionActual():
 		else:
 			direccionI=-1
 
-	if (time.time()-tiempoRobot) >= 0.01:
+	if (time.time()-tiempoRobot) >= 1:
 
 		velocidadMDSensada = direccionD*(contadorD*100/numeroPulsosVuelta)*(2*np.pi)
 		velocidadMISensada = direccionI*(contadorI*100/numeroPulsosVuelta)*(2*np.pi)
@@ -226,8 +232,8 @@ def calcularCinematicaRobot(puntoFinal):
 #Funcion principal del codigo. Inicia los parametros ante ROS y mantiene este nodo en operacion, indicando que realizar
 def main():
 
-	lcd.lcd_display_string(estadoInicio[0], 1)
-	lcd.lcd_display_string(estadoInicio[1], 2)
+	#lcd.lcd_display_string(estadoInicio[0], 1)
+	#lcd.lcd_display_string(estadoInicio[1], 2)
 
 	try:
 
@@ -237,28 +243,33 @@ def main():
 		robotRequest = rospy.ServiceProxy('ack_service', AckService)
 		AckRobot = robotRequest(group_number, IP)
 
-		lcd.lcd_clear()
-		lcd.lcd_display_string(estadoPreAck[0], 1)
-		lcd.lcd_display_string(estadoPreAck[1], 2)
+		#lcd.lcd_clear()
+		#lcd.lcd_display_string(estadoPreAck[0], 1)
+		#lcd.lcd_display_string(estadoPreAck[1], 2)
 
 		while AckRobot.state == 0:
 			AckRobot = robotRequest(5, IP)
 			rospy.loginfo("Esperando aprobacion servidor")
 
 
-		lcd.lcd_clear()
-		lcd.lcd_display_string(estadoPreparado[0], 1)
-		lcd.lcd_display_string(estadoPreparado[1], 2)
+		#lcd.lcd_clear()
+		#lcd.lcd_display_string(estadoPreparado[0], 1)
+		#lcd.lcd_display_string(estadoPreparado[1], 2)
 
 		start_request = rospy.Service('start_service', StartService, handle_start_service)
 
-		rate = rospy.Rate(10)
+		rate = rospy.Rate(1000)
 
 		while not rospy.is_shutdown():
 
 			if pruebaIniciada:
 				actualizarPosicionActual();
-				calcularCinematicaRobot(posicionFinal);
+
+				GPIO.output(pin1LogicMotor,False)
+				GPIO.output(pin2LogicMotor,True)
+				GPIO.output(pin3LogicMotor,False)
+				GPIO.output(pin4LogicMotor,True)
+				#calcularCinematicaRobot(posicionFinal);
 
 			rate.sleep()
 

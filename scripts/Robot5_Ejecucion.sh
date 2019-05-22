@@ -2,6 +2,8 @@
 
 cd ~/catkin_ws/src/Robot5/scripts/
 chmod +x *.py
+cd ~/
+source .bashrc
 cd ~/catkin_ws/
 source devel/setup.bash 
 rosrun Robot5 Robot5_ComunicacionMaster.py $(hostname -I) &
