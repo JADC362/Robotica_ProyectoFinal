@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import time
+import time as tm
 import RPi.GPIO as GPIO
 import rospy
 import numpy as np
@@ -76,7 +76,7 @@ def callbackMotorVelsCine(msg):
 	velocidadMICine = msg.MotorI.data
 
 #Funcion callback llamada cuando hay una actualizacion en el RobotMotorVels. Actualiza la informacion de velocidad de motores del robot
-def callbackMotorVelsCine(msg):
+def callbackMotorVelsOdo(msg):
 	global velocidadMDOdo, velocidadMIOdo
 
 	velocidadMDOdo = msg.MotorD.data

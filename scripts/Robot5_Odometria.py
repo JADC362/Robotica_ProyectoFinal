@@ -273,7 +273,7 @@ def actualizarErrorPropagado(DeltaS,DeltaT):
 #Funcion principal del codigo. Inicia los parametros ante ROS y mantiene este nodo en operacion, indicando que realizar
 def main():
 
-	global pubRobotPosition, pubRobotCovariance, matrizCovarianza
+	global pubRobotPosition, pubRobotCovariance, matrizCovarianza, pubRobotMotorVelsOdo
 
 	try:
 
