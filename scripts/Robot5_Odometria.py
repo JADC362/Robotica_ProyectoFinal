@@ -3,10 +3,10 @@ import time
 import RPi.GPIO as GPIO
 import rospy
 import numpy as np
-from Robot5.msg import MotorVels
 from Robot5.msg import GeneralPos
 from geometry_msgs.msg import Pose
 from std_msgs.msg import Int32
+from std_msgs.msg import Float32
 from Robot5.msg import MotorVels
 from master_msgs_iele3338.msg import Covariance
 
@@ -65,9 +65,10 @@ tamanoMapa = 2500
 #Tamano de grilla 0.05x0.05 (milimetros)
 tamanoGrilla = 50
 
-#Variables de representacion para publicar en los topico robot_position y robot_uncertainty
+#Variables de representacion para publicar en los topico robot_position, robot_uncertainty y RobotMotorVelsOdo
 pubRobotPosition = None;
 pubRobotCovariance = None;
+pubRobotMotorVelsOdo = None;
 
 #Contador de paso de los encoders
 contadorD=0
@@ -190,8 +191,8 @@ def determinarVelocidades():
 		#print(contadorD)
 		#print(contadorI)
 
-		velocidadMD = direccionD*(contadorD*100/numeroPulsosVuelta)*(2*np.pi)*(paraRuedaD[2])
-		velocidadMI = direccionI*(contadorI*100/numeroPulsosVuelta)*(2*np.pi)*(paraRuedaI[2])
+		velocidadMD = direccionD*(contadorD*100/numeroPulsosVuelta)*(2*np.pi)
+		velocidadMI = direccionI*(contadorI*100/numeroPulsosVuelta)*(2*np.pi)
 
 		tiempoRobot = time.time()
 
@@ -200,7 +201,11 @@ def determinarVelocidades():
 		contadorD=0
 		contadorI=0
 
-		
+		RobotMotorVels = MotorVels();
+		RobotMotorVels.MotorD = Float32(velocidadMD);
+		RobotMotorVels.MotorI = Float32(velocidadMI);
+
+		pubRobotMotorVelsOdo.publish(RobotMotorVels);
 		actualizarPosicionActual()
 
 #Funcion encargada de actualizar la posicion actual que cree el robot
@@ -209,8 +214,11 @@ def determinarVelocidades():
 def actualizarPosicionActual():
 	global posicionActual
 
-	DeltaS = ((velocidadMD+velocidadMI)*tiempoMedicionVelocidad)/2.0;
-	DeltaT = ((velocidadMD-velocidadMI)*tiempoMedicionVelocidad)/(2.0*paraRuedaD[3]);
+	DeltaSr = velocidadMD*tiempoMedicionVelocidad*paraRuedaD[2];
+	DeltaSi = velocidadMI*tiempoMedicionVelocidad*paraRuedaI[2];
+
+	DeltaS = (DeltaSr+DeltaSi)/2.0;
+	DeltaT = (DeltaSr-DeltaSi)/(2.0*paraRuedaD[3]);
 
 	actualizarErrorPropagado(DeltaS,DeltaT) #Se tiene que calcular primero el error antes de calcular la nueva posicion
 
@@ -233,13 +241,19 @@ def actualizarPosicionActual():
 def actualizarErrorPropagado(DeltaS,DeltaT):
 	global matrizCovarianza, pubRobotCovariance
 
+	DeltaSr = velocidadMD*tiempoMedicionVelocidad*paraRuedaD[2];
+	DeltaSi = velocidadMI*tiempoMedicionVelocidad*paraRuedaI[2];
+
+	DeltaS = (DeltaSr+DeltaSi)/2.0;
+	DeltaT = (DeltaSr-DeltaSi)/(2.0*paraRuedaD[3]);
+
 	gradientePosicion = np.array([[1,0,-DeltaS*np.sin(posicionActual[2]+DeltaT/2.0)],[0,1,DeltaS*np.cos(posicionActual[2]+DeltaT/2.0)],[0,0,1]]);
 	
 	gradienteRuedasFila1 = np.array([((1/2.0)*np.cos(posicionActual[2]+DeltaT/2.0))-((1/2.0)*(DeltaS/(2.0*paraRuedaD[3]))*np.sin(posicionActual[2]+DeltaT/2.0)),((1/2.0)*np.cos(posicionActual[2]+DeltaT/2.0))+((1/2.0)*(DeltaS/(2.0*paraRuedaD[3]))*np.sin(posicionActual[2]+DeltaT/2.0))])
 	gradienteRuedasFila2 = np.array([((1/2.0)*np.sin(posicionActual[2]+DeltaT/2.0))+((1/2.0)*(DeltaS/(2.0*paraRuedaD[3]))*np.cos(posicionActual[2]+DeltaT/2.0)),((1/2.0)*np.sin(posicionActual[2]+DeltaT/2.0))-((1/2.0)*(DeltaS/(2.0*paraRuedaD[3]))*np.cos(posicionActual[2]+DeltaT/2.0))])
 	gradienteRuedas = np.array([gradienteRuedasFila1,gradienteRuedasFila2,[(1/(2.0*paraRuedaD[3])),-(1/(2.0*paraRuedaD[3]))]])
 
-	matrizCovarianzaRuedas = np.array([[errorKD*np.abs(velocidadMD*tiempoMedicionVelocidad),0],[0,errorKI*np.abs(velocidadMI*tiempoMedicionVelocidad)]])
+	matrizCovarianzaRuedas = np.array([[errorKD*np.abs(DeltaSr),0],[0,errorKI*np.abs(DeltaSi)]])
 
 	matrizCovarianza = np.matmul(np.matmul(gradientePosicion,matrizCovarianza),np.transpose(gradientePosicion))+np.matmul(np.matmul(gradienteRuedas,matrizCovarianzaRuedas),np.transpose(gradienteRuedas))
 
@@ -267,11 +281,12 @@ def main():
 
 		pubRobotPosition = rospy.Publisher("robot_position",Pose,queue_size=10)
 		pubRobotCovariance = rospy.Publisher("robot_uncertainty",Covariance,queue_size=10)
+		pubRobotMotorVelsOdo = rospy.Publisher("RobotMotorVelsOdo",MotorVels,queue_size=10)
 		
 		rospy.Subscriber("RobotStatus",Int32,callbackRobotStatus)
 		rospy.Subscriber("GeneralPositions",GeneralPos,callbackGeneralPositions)
 		rospy.Subscriber("robot_position",Pose,callbackRobotPosition)
-		rospy.Subscriber("RobotMotorVels",MotorVels,callbackMotorVels)
+		rospy.Subscriber("RobotMotorVelsCine",MotorVels,callbackMotorVels)
 
 		matrizCovarianza = np.zeros([3,3])
 		

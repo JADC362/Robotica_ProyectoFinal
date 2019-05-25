@@ -39,13 +39,25 @@ GPIO.output(pin3LogicMotor,False)
 GPIO.output(pin4LogicMotor,False)
 
 #Velocidad de los motores
-velocidadMD=0 #Motor derecha
-velocidadMI=0 #Motor izquierdo
+velocidadMDCine=0 #Motor derecha - Cinematica
+velocidadMICine=0 #Motor izquierdo - Cinematica
+velocidadMDOdo=0 #Motor derecha - Odometria
+velocidadMIOdo=0 #Motor izquierdo - Odometria
 
 #Variable que indica si la prueba ya inicio
 pruebaIniciada = False
 
-mayorValorEncoder = 5.6861;
+#Tiempo inicial de ejecucion del nodo
+tiempoInicial = 0;
+
+#Integral de movimiento del error para el sistema de control
+integralControl = np.array([0,0]);
+
+#Constantes de control Kp, Ki
+k = [1, 70]
+
+#Vector de control del sistema pwm
+pwmControl = np.array([0,0]);
 
 #Funcion callback llamada cuando hay una actualizacion en el RobotStatus. Actualiza la informacion de estado del robot
 def callbackRobotStatus(msg):
@@ -57,14 +69,39 @@ def callbackRobotStatus(msg):
 		pruebaIniciada = False
 
 #Funcion callback llamada cuando hay una actualizacion en el RobotMotorVels. Actualiza la informacion de velocidad de motores del robot
-def callbackMotorVels(msg):
-	global velocidadMD, velocidadMI
+def callbackMotorVelsCine(msg):
+	global velocidadMDCine, velocidadMICine
 
-	velocidadMD = msg.MotorD.data
-	velocidadMI = msg.MotorI.data
+	velocidadMDCine = msg.MotorD.data
+	velocidadMICine = msg.MotorI.data
 
-	#print("velocidadMD:{}".format(velocidadMD))
-	#print("velocidadMI:{}".format(velocidadMI))
+#Funcion callback llamada cuando hay una actualizacion en el RobotMotorVels. Actualiza la informacion de velocidad de motores del robot
+def callbackMotorVelsCine(msg):
+	global velocidadMDOdo, velocidadMIOdo
+
+	velocidadMDOdo = msg.MotorD.data
+	velocidadMIOdo = msg.MotorI.data
+
+def controlPWM():
+	global tiempoInicial, integralControl, pwmControl
+	tiempoActual = tm.time();
+
+	errorControl = np.array([velocidadMDCine,velocidadMICine])-np.array([velocidadMDOdo,velocidadMIOdo]);
+	deltaT = tiempoActual-tiempoInicial;
+			
+	integralControl = errorControl*deltaT + integralControl;
+				
+	tiempoInicial=tiempoActual;	
+				
+	pwmControl = k[0]*errorControl + k[1]*integralControl;
+
+	print(pwmControl);
+
+	if pwmControl[0] > 100:
+		pwmControl[0] = 100;
+
+	if pwmControl[1] > 100:
+		pwmControl[1] = 100;
 
 #Funcion principal del codigo. Inicia los parametros ante ROS y mantiene este nodo en operacion, indicando que realizar
 def main():
@@ -73,38 +110,35 @@ def main():
 		rospy.init_node('Robot5_Movimiento', anonymous=False)
 
 		rospy.Subscriber("RobotStatus",Int32,callbackRobotStatus)
-		rospy.Subscriber("RobotMotorVels",MotorVels,callbackMotorVels)
+		rospy.Subscriber("RobotMotorVelsCine",MotorVels,callbackMotorVelsCine)
+		rospy.Subscriber("RobotMotorVelsOdo",MotorVels,callbackMotorVelsOdo)
 
 		rate = rospy.Rate(1000)
+
+		tiempoInicial = tm.time()
 
 		while not rospy.is_shutdown():
 
 			if pruebaIniciada:
-				if(velocidadMD > 0):
-					GPIO.output(pin3LogicMotor, True)
-					GPIO.output(pin4LogicMotor, False)
-				
-				else:
+				if(velocidadMDCine > 0):
 					GPIO.output(pin3LogicMotor, False)
 					GPIO.output(pin4LogicMotor, True)
 				
-				if(np.abs(velocidadMD) > 6.2):
-					RuedaD.ChangeDutyCycle(100)
 				else:
-					RuedaD.ChangeDutyCycle(np.abs(velocidadMD*100.0/6.2))
+					GPIO.output(pin3LogicMotor, True)
+					GPIO.output(pin4LogicMotor, False)
+				
+				RuedaD.ChangeDutyCycle(pwmControl[0])
 		
 				
-				if(velocidadMI > 0):
-					GPIO.output(pin1LogicMotor, True)
-					GPIO.output(pin2LogicMotor, False)
-				else:
+				if(velocidadMICine > 0):
 					GPIO.output(pin1LogicMotor, False)
 					GPIO.output(pin2LogicMotor, True)
-
-				if(np.abs(velocidadMI) > 6.2):
-					RuedaI.ChangeDutyCycle(100)
 				else:
-					RuedaI.ChangeDutyCycle(np.abs(velocidadMI*100/6.2))
+					GPIO.output(pin1LogicMotor, True)
+					GPIO.output(pin2LogicMotor, False)
+
+				RuedaI.ChangeDutyCycle(pwmControl[1])
 			
 			else:
 				GPIO.output(pin1LogicMotor,False)

@@ -328,7 +328,7 @@ def calcularCinematicaRobot(puntoFinal):
 	#Obtencion del error de posicion en coordenadas polares
 	posPol = np.asarray([0,0,puntoFinal[2]])-obtenerPosicionPol(puntoFinal)
 	
-	print("Error:{}".format(posPol));
+	#print("Error:{}".format(posPol));
 	#Ley de control aplicada para encontrar v y w
 	vecVelLinearAngular = np.asarray([k[0]*posPol[0],k[1]*posPol[1]+k[2]*posPol[2]])
 	
@@ -357,7 +357,7 @@ def main():
 		global pubRobotMotorVels, callPos
 		rospy.init_node('Robot5_Cinematica', anonymous=False)
 
-		pubRobotMotorVels=rospy.Publisher("RobotMotorVels",MotorVels,queue_size=10)
+		pubRobotMotorVels=rospy.Publisher("RobotMotorVelsCine",MotorVels,queue_size=10)
 
 		rospy.Subscriber("RobotStatus",Int32,callbackRobotStatus)
 		rospy.Subscriber("GeneralPositions",GeneralPos,callbackGeneralPositions)
