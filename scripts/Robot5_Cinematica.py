@@ -12,7 +12,7 @@ import networkx as nx
 
 #Posiciones actual, final y deseada
 posicionActual = [0,0,0]
-posicionFinal = [1,1,0]*1000;
+posicionFinal = [1,1,0];
 posicionDeseada = [0,0,0];
 
 #Matriz de obstaculos, cada fila corresponde a un obstaculo, y cada columna a un dato
@@ -22,14 +22,14 @@ obstaculos = [];
 #Tiempo general del robot
 tiempoRobot = 0;
 
-#Constante del sistema de control
-k = [0.04*10,0.3*0,0.02*0]
+#Constante del sistema de control -  np.array([0.13,0.12,0.02])*2.5;
+k = np.array([0.13,0.12,0.01]);
 
 #Variable de umbral de error superado cuando el robot se acerca a una posicion
 umbralSuperado = False;
 
 #Variable de umbral de error superado cuando el robot se acerca a una posicion
-errorRho = 10;
+errorRho = 20;
 
 #Vector que contiene los parametros de las ruedas del robot: alpha, beta, r, l
 paraRuedaI = [np.pi/2.0,np.pi,35.0,80.0]
@@ -75,7 +75,7 @@ RobotMotorVels.MotorI = 0.0;
 callPos = False
 
 #Variable de error que representa el error total de posicion 
-errorMax=(tamanoGrilla)
+errorMax=(tamanoGrilla)*2.0
 
 #Variable que representa si ya se sobrepaso el umbral de error
 umbralSuperado = False
@@ -299,12 +299,13 @@ def CalcularPosicionDeseada():
 
 #Obtiene la posicion del robot en coordenadas polares rho, alpha, beta
 def obtenerPosicionPol(puntoFinal):
-	global umbralSuperado, errorRho
+	global umbralSuperado, errorRho, k
 
 	rho = np.sqrt((puntoFinal[0]-posicionActual[0])**2+(puntoFinal[1]-posicionActual[1])**2)
 
 	if rho <= errorRho:
 		umbralSuperado = True
+		k = np.array([0.0,0.0,0.1])
 
 	if not umbralSuperado:
 		alpha = -posicionActual[2]+np.arctan2((puntoFinal[1]-posicionActual[1]),(puntoFinal[0]-posicionActual[0]))
@@ -328,7 +329,7 @@ def calcularCinematicaRobot(puntoFinal):
 	#Obtencion del error de posicion en coordenadas polares
 	posPol = np.asarray([0,0,puntoFinal[2]])-obtenerPosicionPol(puntoFinal)
 	
-	#print("Error:{}".format(posPol));
+	print("Error:{}".format(posPol));
 	#Ley de control aplicada para encontrar v y w
 	vecVelLinearAngular = np.asarray([k[0]*posPol[0],k[1]*posPol[1]+k[2]*posPol[2]])
 	
@@ -345,9 +346,6 @@ def calcularCinematicaRobot(puntoFinal):
 	RobotMotorVels = MotorVels();
 	RobotMotorVels.MotorD = Float32(velocidadMD);
 	RobotMotorVels.MotorI = Float32(velocidadMI);
-
-	#print(velocidadMD)
-	#print(velocidadMI)
 
 	pubRobotMotorVels.publish(RobotMotorVels);
 

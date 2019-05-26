@@ -123,7 +123,7 @@ def main():
 		while not rospy.is_shutdown():
 
 			if RobotStatus == 2:
-				numero=np.random.randint(1000,9999)
+				numero = 1234;
 				terminarServicio(numero);
 
 			rate.sleep()

@@ -32,14 +32,14 @@ GPIO.input(EncoderBI)
 
 #Posiciones actual, final y de obstaculos
 posicionActual = [0,0,0]
-posicionFinal = [1,1,0]*1000;
+posicionFinal = [1,1,0];
 obstaculos = [];
 
 #Matriz de error de la posicion actual
 matrizCovarianza = []
 
 #Variable que indica el numero de pulsos por vuelta del motor con caja reductora
-numeroPulsosVuelta=442.0
+numeroPulsosVuelta=442.0*2
 
 #Variables de estado de los encoders
 EstadoAactualD=0
@@ -94,7 +94,7 @@ errorKI = 0.1;
 razonObstaculoError = 1.0
 
 #Tiempo durante el cual se estima la velocidad
-tiempoMedicionVelocidad = 0.01
+tiempoMedicionVelocidad = 0.1
 
 #Funcion callback llamada cuando hay una actualizacion en el RobotMotorVels. Actualiza la informacion de velocidad de motores del robot
 def callbackMotorVels(msg):
@@ -174,44 +174,43 @@ def determinarVelocidades():
 	EstadoAactualD=GPIO.input(EncoderAD)
 	EstadoBactualD=GPIO.input(EncoderBD)
 
+	print("A:{}, B: {}".format(EstadoAactualI,EstadoBactualI))
+
 	EstadoAanteriorI = EstadoAactualI
 	EstadoAactualI = GPIO.input(EncoderAI)
 	EstadoBactualI = GPIO.input(EncoderBI)
 
-	if EstadoAactualD!=EstadoAanteriorD and EstadoAactualD==1:
+	if EstadoAactualD!=EstadoAanteriorD:
 		contadorD+=1
-				
 
-	if EstadoAactualI!=EstadoAanteriorI and EstadoAactualI==1:
+	if EstadoAactualI!=EstadoAanteriorI:
 		contadorI+=1
 
-	if (time.time()-tiempoRobot) >= tiempoMedicionVelocidad:
+	deltaTiempo = time.time()-tiempoRobot
+	if (deltaTiempo) >= tiempoMedicionVelocidad:
 
-
-		#print(contadorD)
-		#print(contadorI)
-
-		velocidadMD = direccionD*(contadorD*100/numeroPulsosVuelta)*(2*np.pi)
-		velocidadMI = direccionI*(contadorI*100/numeroPulsosVuelta)*(2*np.pi)
-
-		tiempoRobot = time.time()
+		velocidadMD = direccionD*(contadorD*10.0/numeroPulsosVuelta)*(2*np.pi)
+		velocidadMI = direccionI*(contadorI*10.0/numeroPulsosVuelta)*(2*np.pi)		
 
 		#print("ConD: {}, VelD:{}, ConI: {}, VelDI:{}\n".format(contadorD,velocidadMD,contadorI,velocidadMI))
 		
-		contadorD=0
-		contadorI=0
 
 		RobotMotorVels = MotorVels();
 		RobotMotorVels.MotorD = Float32(velocidadMD);
 		RobotMotorVels.MotorI = Float32(velocidadMI);
-
 		pubRobotMotorVelsOdo.publish(RobotMotorVels);
-		actualizarPosicionActual()
+
+		actualizarPosicionActual(deltaTiempo)
+		tiempoRobot = time.time()
+
+		contadorD=0
+		contadorI=0
+
 
 #Funcion encargada de actualizar la posicion actual que cree el robot
 #Asi mismo, la funcion se encarga de llamar al metodo para actualizar la matriz de covarianza
 #Por ultimo, la funcion publica esta posicion nueva en el topico robot_position
-def actualizarPosicionActual():
+def actualizarPosicionActual(tiempo):
 	global posicionActual
 
 	DeltaSr = velocidadMD*tiempoMedicionVelocidad*paraRuedaD[2];
@@ -290,7 +289,7 @@ def main():
 
 		matrizCovarianza = np.zeros([3,3])
 		
-		rate = rospy.Rate(1000)
+		rate = rospy.Rate(10000)
 
 		while not rospy.is_shutdown():
 
