@@ -51,15 +51,15 @@ pruebaIniciada = False
 tiempoInicial = 0;
 
 #Constantes de control Kp, Ki
-k = np.array([1, 0.0]);
+k = np.array([1, 0.0000005]);
 
 #Vector de control del sistema pwm
 pwmControl = np.array([0,0]);
 
 velocidadMaxima = 6.2;
 
-vectorIntegral1 = np.zeros([1,10]);
-vectorIntegral2 = np.zeros([1,10]);
+vectorIntegral1 = np.zeros([1,5]);
+vectorIntegral2 = np.zeros([1,5]);
 
 #Funcion callback llamada cuando hay una actualizacion en el RobotStatus. Actualiza la informacion de estado del robot
 def callbackRobotStatus(msg):
@@ -170,3 +170,4 @@ if __name__=='__main__':
 	main()
 else:
 	print("Error al iniciar el codigo")
+
