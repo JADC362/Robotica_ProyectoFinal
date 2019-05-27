@@ -83,8 +83,8 @@ direccionD=0
 direccionI=0
 
 #Vector que contiene los parametros de las ruedas del robot: alpha, beta, r, l
-paraRuedaI = [np.pi/2.0,0,35.0,80.0]
-paraRuedaD = [-np.pi/2.0,-np.pi,35.0,80.0]
+paraRuedaI = [np.pi/2.0,np.pi,35.0,80.0]
+paraRuedaD = [-np.pi/2.0,0,35.0,80.0]
 
 #Proporcionalidad de errores generados por las ruedas en su moviminento
 errorKD = 0.1;
@@ -130,7 +130,7 @@ def callbackGeneralPositions(msg):
 		obstaculos.append([msg.obstacles[i].position.position.x,msg.obstacles[i].position.position.y,msg.obstacles[i].radius])
 
 	posicionFinal = [msg.goal.position.x,msg.goal.position.y,msg.goal.orientation.w];
-	construirGrillaMapa()
+	#construirGrillaMapa()
 
 #Funcion callback llamada cuando hay una actualizacion en el robot_position. Actualiza la informacion de posicion del robot y obtaculos
 def callbackRobotPosition(msg):
@@ -174,14 +174,13 @@ def determinarVelocidades():
 	EstadoAactualD=GPIO.input(EncoderAD)
 	EstadoBactualD=GPIO.input(EncoderBD)
 
-	print("A:{}, B: {}".format(EstadoAactualI,EstadoBactualI))
-
 	EstadoAanteriorI = EstadoAactualI
 	EstadoAactualI = GPIO.input(EncoderAI)
 	EstadoBactualI = GPIO.input(EncoderBI)
 
 	if EstadoAactualD!=EstadoAanteriorD:
 		contadorD+=1
+				
 
 	if EstadoAactualI!=EstadoAanteriorI:
 		contadorI+=1
@@ -193,7 +192,6 @@ def determinarVelocidades():
 		velocidadMI = direccionI*(contadorI*10.0/numeroPulsosVuelta)*(2*np.pi)		
 
 		#print("ConD: {}, VelD:{}, ConI: {}, VelDI:{}\n".format(contadorD,velocidadMD,contadorI,velocidadMI))
-		
 
 		RobotMotorVels = MotorVels();
 		RobotMotorVels.MotorD = Float32(velocidadMD);
@@ -307,3 +305,4 @@ if __name__=='__main__':
 	main()
 else:
 	print("Error al iniciar el codigo")
+
