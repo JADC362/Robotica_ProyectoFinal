@@ -1,11 +1,10 @@
 # Robotica_ProyectoFinal
 
 Development of a Directional Wheel Robot with Path Planning Search created in ROS (Robot Operating System). 
-The system is code in Python3, running in Ubuntu 18.04 (Linux), mounted in a RaspberryPI 3. 
+The system is code in Python3, running in Ubuntu 16.04 (Linux), mounted in a RaspberryPI 3. 
 
 This is the final proyect of the course Robotics gyben in the University of the Andes (Colombia).
 
-# Robótica_ProyectoFinal
 CONTEXTO
 
 Este es un repositorio creado a manera de contener la solución implementada al proyecto final del programa ROBÓTICA de la Universidad de los Andes. Esta se enfoca en la creación e implementación de un robot móvil diferencial basado en ROS, que permita implementar algoritmos de filtro de Kalman, generación de grafo y mapa, calculo y movimiento de ruta optima y evación de obstaculos.
